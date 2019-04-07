@@ -8,12 +8,15 @@ from scipy.optimize import minimize
 """
 For each of the four transistors on your ALD1106 chip, measure channel current as a function
 of gate voltage with the source voltage at ground and the drain voltage at Vdd. Fit the EKV
-model to each of these characteristics and extract a value of Is, κ, and VT0. In your report,
-include a table showing these extracted parameter values for all four transistors. Also, make
-a single semilog plot for your report showing all four current–voltage characteristics along
-with the fits. Also, make a semilog (i.e., make the x-axis log) plot showing the percentage
-difference between each transistor’s channel current and the mean value of all four channel
-currents as a function of the mean value of all four channel currents. How well do the
+model to each of these characteristics and extract a value of Is, κ, and VT0. 
+
+In your report, include a table showing these extracted parameter values for all four transistors. 
+
+Also, make a single semilog plot for your report showing all four current–voltage characteristics along with the fits. 
+
+Also, make a semilog (i.e., make the x-axis log) plot showing the percentage difference between each transistor’s channel current and the mean value of all four channel currents as a function of the mean value of all four channel currents. 
+
+How well do the
 transistors match each other? Do you notice any systematic trends? For instance, do the
 devices match better as a function of the level of inversion? Do certain devices match each
 other better than others?
@@ -40,51 +43,53 @@ def ekv(vg, params):
   return Is * np.power(np.log(1 + np.exp(kappa*(vg - Vt)/(2*0.0258))), 2)
 
 
-for i in range(3):
-  vg = []
-  isat = []
-
+vg = [[],[],[],[]]
+isat = [[],[],[],[]]
+params = [[],[],[],[]]
+for i in range(4):
   with open("data/exp1_nmos_%s.csv" % [1,2,3,4][i]) as f:
     c = csv.reader(f, delimiter=",")
     next(c) # Throw away the header
     for row in c:
-      vg += [float(row[0])]
-      isat += [float(row[1])] 
+      vg[i] += [float(row[0])]
+      isat[i] += [-float(row[1])] 
 
-  vg, isat = clip_range(vg, isat, (np.finfo(float).eps, np.inf)) # Clip to positive
+  # vg[i], isat[i] = clip_range(vg[i], isat[i], (1e-9, np.inf)) # Clip to reasonable
+  vg[i] = vg[i][50:] # Do it uniformly so we can subtract things
+  isat[i] = isat[i][50:]
 
-  params = fit(vg, isat, ekv, [7.2197482429849523e-08, 0.50917435504354447, 3.3782458038598859])
+  params[i] = fit(vg[i], isat[i], ekv, [7.2197482429849523e-08, 0.50917435504354447, 3.3782458038598859])
+  print("Transistor %d: Is = %f, Vt = %f, κ = %f" % (i, params[i][0], params[i][1], params[i][2]))
 
 
-  # Calculate incremental transconductance gains
-  gm_en = np.diff(vg) / np.diff(isat)
-  gm_vn = np.arange(min(vg), max(vg), (max(vg) - min(vg))/len(vg))
-  gm_tn_both = [[],[]]
-  gm_tn_both[0] = [ekv(v, params) for v in gm_vn][:-1]
-  gm_tn_both[1] = np.diff(gm_vn) / np.diff([ekv(v, params) for v in gm_vn])
 
-  # Plot things
-  fig = plt.figure(figsize=(8,6))
-  ax = plt.subplot(111)
+imean = np.array([np.mean(i) for i in zip(*isat)])
+idiff = [np.array(i) - imean for i in isat]
 
-  ax.semilogy(vg, isat, 'b.', label="N-type current (experimental)")
-  ax.semilogy(vg, ekv(vg, params), 'g-', label="N-type current (theoretical, Is = %g A, Vt0 = %g V, κ = %g)" %  (params[0], params[1], params[2]))
 
-  plt.title("Saturation current-voltage characteristics")
-  plt.xlabel("Gate voltage (V)")
-  plt.ylabel("Current (A)")
-  plt.grid(True)
-  ax.legend()
-  plt.savefig("exp1-vi-semilog.pdf")
-  plt.cla()
+# Plot things
+fig = plt.figure(figsize=(8,6))
+ax = plt.subplot(111)
 
-  ax.loglog(isat[:-1], gm_en, 'b.', label="Inc. transconductance gain (experimental)")
-  ax.loglog(gm_tn_both[0], gm_tn_both[1], 'g-', label="Inc. transconductance gain (theoretical)")
+for (n, v, i, p) in zip(range(4), vg, isat, params):
+  ax.semilogy(v, i, ['r.', 'y.', 'g.', 'b.'][n], markersize=1, label="Actual current (%d)" % (n+1))
+  ax.semilogy(v, ekv(v, p), ['r-', 'y-', 'g-', 'b-'][n], linewidth=0.6, label="Theoretical fit (%d) (Is = %g A, Vt0 = %g V, κ = %g)" %  (n+1, p[0], p[1], p[2]))
 
-  plt.title("N-type incremental transconductance gain")
-  plt.xlabel("Current (A)")
-  plt.ylabel("Gm (℧)")
-  plt.grid(True)
-  ax.legend()
-  plt.savefig("exp1-gm-n.pdf")
-  plt.cla()
+plt.title("Saturation current-voltage characteristics")
+plt.xlabel("Gate voltage (V)")
+plt.ylabel("Current (A)")
+plt.grid(True)
+ax.legend()
+plt.savefig("exp1-vi-semilog.pdf")
+plt.cla()
+
+
+for (n, i) in zip(range(4), idiff):
+  ax.semilogx(imean, i * 100, ['r.', 'y.', 'g.', 'b.'][n], markersize=1, label="Percent difference in current (%d)" % (n+1))
+plt.title("Current differences between transistors")
+plt.xlabel("Mean current (A)")
+plt.ylabel("Difference in current (%)")
+plt.grid(True)
+ax.legend()
+plt.savefig("exp1-diffs.pdf")
+plt.cla()
