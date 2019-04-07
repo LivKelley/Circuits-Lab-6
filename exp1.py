@@ -59,7 +59,7 @@ for i in range(4):
   isat[i] = isat[i][50:]
 
   params[i] = fit(vg[i], isat[i], ekv, [7.2197482429849523e-08, 0.50917435504354447, 3.3782458038598859])
-  print("Transistor %d: Is = %f, Vt = %f, κ = %f" % (i, params[i][0], params[i][1], params[i][2]))
+  print("Transistor %d: Is = %g, Vt = %g, κ = %g" % (i, params[i][0], params[i][1], params[i][2]))
 
 
 
